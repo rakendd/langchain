@@ -112,6 +112,7 @@ class LLMChain(Chain):
         prompts, stop = self.prep_prompts(input_list, run_manager=run_manager)
         callbacks = run_manager.get_child() if run_manager else None
         if isinstance(self.llm, BaseLanguageModel):
+            print("Prompts being sent to LLM:", [prompt.to_string() for prompt in prompts])
             return self.llm.generate_prompt(
                 prompts,
                 stop,
@@ -169,7 +170,9 @@ class LLMChain(Chain):
         if "stop" in input_list[0]:
             stop = input_list[0]["stop"]
         prompts = []
+        # print("From prep_prompts")
         for inputs in input_list:
+            # print(inputs)
             selected_inputs = {k: inputs[k] for k in self.prompt.input_variables}
             prompt = self.prompt.format_prompt(**selected_inputs)
             _colored_text = get_colored_text(prompt.to_string(), "green")

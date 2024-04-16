@@ -119,16 +119,38 @@ class BaseQAWithSourcesChain(Chain, ABC):
             values["combine_documents_chain"] = values.pop("combine_document_chain")
         return values
 
+    # def _split_sources(self, answer: str) -> Tuple[str, str]:
+    #     """Split sources from answer."""
+    #     if re.search(r"SOURCES?:", answer, re.IGNORECASE):
+    #         answer, sources = re.split(
+    #             r"SOURCES?:|QUESTION:\s", answer, flags=re.IGNORECASE
+    #         )[:2]
+    #         sources = re.split(r"\n", sources)[0].strip()
+    #     else:
+    #         sources = ""
+    #     return answer, sources
+    
     def _split_sources(self, answer: str) -> Tuple[str, str]:
-        """Split sources from answer."""
-        if re.search(r"SOURCES?:", answer, re.IGNORECASE):
-            answer, sources = re.split(
-                r"SOURCES?:|QUESTION:\s", answer, flags=re.IGNORECASE
-            )[:2]
-            sources = re.split(r"\n", sources)[0].strip()
+        """Split sources from answer, capturing potentially multi-line sources and handling edge cases."""
+        # Using a regex to find the position where 'SOURCES:' or similar starts
+        match = re.search(r"SOURCES?:", answer, re.IGNORECASE)
+        if match:
+            # Splitting only at the first occurrence found by the search
+            index = match.start()
+            # Everything before 'SOURCES:' is the main content
+            main_content = answer[:index].strip()
+            # Splitting from the index of 'SOURCES:' and ensuring there's text after it
+            sources_section = answer[index:]
+            sources_split = sources_section.split('\n', 1)
+            # Check if there's more than one part after splitting; if not, handle accordingly
+            sources_content = sources_split[1].strip() if len(sources_split) > 1 else ""
+            # Optional: strip unwanted characters like leading hyphens from the sources content
+            sources_content = re.sub(r'^[-\s]*', '', sources_content)
+            return main_content, sources_content
         else:
-            sources = ""
-        return answer, sources
+            # If 'SOURCES:' is not found, return the original answer and empty sources
+            return answer, ""
+
 
     @abstractmethod
     def _get_docs(

@@ -179,12 +179,73 @@ class StuffDocumentsChain(BaseCombineDocumentsChain):
         ]
         return super().input_keys + extra_keys
 
-    def _get_inputs(self, docs: List[Document], **kwargs: Any) -> dict:
-        """Construct inputs from kwargs and docs.
+    # def _get_inputs(self, docs: List[Document], **kwargs: Any) -> dict:
+    #     """Construct inputs from kwargs and docs.
 
-        Format and then join all the documents together into one input with name
-        `self.document_variable_name`. Also pluck any additional variables
-        from **kwargs.
+    #     Format and then join all the documents together into one input with name
+    #     `self.document_variable_name`. Also pluck any additional variables
+    #     from **kwargs.
+
+    #     Args:
+    #         docs: List of documents to format and then join into single input
+    #         **kwargs: additional inputs to chain, will pluck any other required
+    #             arguments from here.
+
+    #     Returns:
+    #         dictionary of inputs to LLMChain
+    #     """
+    #     # Format each document according to the prompt
+    #     doc_strings = [format_document(doc, self.document_prompt) for doc in docs]
+    #     # Join the documents together to put them in the prompt.
+    #     inputs = {
+    #         k: v
+    #         for k, v in kwargs.items()
+    #         if k in self.llm_chain.prompt.input_variables
+    #     }
+    #     inputs[self.document_variable_name] = self.document_separator.join(doc_strings)
+    #     return inputs
+    
+    # def _get_inputs(self, docs: List[Document], **kwargs: Any) -> dict:
+    #     """Construct inputs from kwargs and docs with specific formatting for main model and its dependencies.
+
+    #     Args:
+    #         docs: List of documents to format and then join into single input
+    #         **kwargs: additional inputs to chain, will pluck any other required
+    #             arguments from here.
+
+    #     Returns:
+    #         dictionary of inputs to LLMChain
+    #     """
+    #     formatted_documents = []
+
+    #     for doc in docs:
+    #         # Main model format
+    #         main_model_text = (f"Main Model Description: {doc.page_content}"
+    #                         f"\nSource: {doc.metadata['source']}")
+
+    #         dependency_texts = []
+    #         # Format dependency details if present
+    #         if 'dependenciesDetails' in doc.metadata:
+    #             for i, dependency in enumerate(doc.metadata['dependenciesDetails'], start=1):
+    #                 dep_text = (f"Dependency {i} Description: {dependency['description']}"
+    #                             f"\nSource: {dependency.get('name', 'Unknown')}")
+    #                 dependency_texts.append(dep_text)
+
+    #         # Combine main model text with dependencies
+    #         full_text = main_model_text + "\n" + "\n".join(dependency_texts)
+    #         formatted_documents.append(full_text)
+
+    #     # Join the documents together to put them in the prompt.
+    #     inputs = {
+    #         k: v
+    #         for k, v in kwargs.items()
+    #         if k in self.llm_chain.prompt.input_variables
+    #     }
+    #     inputs[self.document_variable_name] = self.document_separator.join(formatted_documents)
+    #     return inputs
+
+    def _get_inputs(self, docs: List[Document], **kwargs: Any) -> dict:
+        """Construct inputs from kwargs and docs with simplified formatting focusing on content and source, clearly indicating dependencies with descriptive names.
 
         Args:
             docs: List of documents to format and then join into single input
@@ -194,16 +255,31 @@ class StuffDocumentsChain(BaseCombineDocumentsChain):
         Returns:
             dictionary of inputs to LLMChain
         """
-        # Format each document according to the prompt
-        doc_strings = [format_document(doc, self.document_prompt) for doc in docs]
+        formatted_documents = []
+
+        for doc in docs:
+            # Main model content
+            model_content = f"Content: {doc.page_content}\nSource: {doc.metadata['source']}"
+
+            # Add dependencies directly to the model's content if present
+            if 'dependenciesDetails' in doc.metadata:
+                dependency_content = "\n".join(
+                    f"Content: {dependency['description']}. Model {doc.page_content.split(':')[0].strip()} depends on this.\nSource: {dependency['description'].split(':')[0].strip()}"
+                    for dependency in doc.metadata['dependenciesDetails']
+                )
+                model_content += "\n" + dependency_content
+
+            formatted_documents.append(model_content)
+
         # Join the documents together to put them in the prompt.
-        inputs = {
-            k: v
-            for k, v in kwargs.items()
-            if k in self.llm_chain.prompt.input_variables
-        }
-        inputs[self.document_variable_name] = self.document_separator.join(doc_strings)
+        inputs = {k: v for k, v in kwargs.items() if k in self.llm_chain.prompt.input_variables}
+        inputs[self.document_variable_name] = self.document_separator.join(formatted_documents)
         return inputs
+
+
+
+
+
 
     def prompt_length(self, docs: List[Document], **kwargs: Any) -> Optional[int]:
         """Return the prompt length given the documents passed in.
@@ -239,6 +315,8 @@ class StuffDocumentsChain(BaseCombineDocumentsChain):
             The first element returned is the single string output. The second
             element returned is a dictionary of other keys to return.
         """
+        # print("Finally we are coming here")
+        # print(docs)
         inputs = self._get_inputs(docs, **kwargs)
         # Call predict on the LLM.
         return self.llm_chain.predict(callbacks=callbacks, **inputs), {}
