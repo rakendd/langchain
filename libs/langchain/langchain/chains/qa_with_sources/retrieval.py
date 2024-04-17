@@ -13,8 +13,8 @@ from langchain_core.retrievers import BaseRetriever
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from langchain.chains.qa_with_sources.base import BaseQAWithSourcesChain
 import os
-from FlagEmbedding import FlagReranker
-reranker = FlagReranker('BAAI/bge-reranker-large', use_fp16=True)
+# from FlagEmbedding import FlagReranker
+# reranker = FlagReranker('BAAI/bge-reranker-large', use_fp16=True)
 import time
 
 class RetrievalQAWithSourcesChain(BaseQAWithSourcesChain):
@@ -136,30 +136,17 @@ class RetrievalQAWithSourcesChain(BaseQAWithSourcesChain):
         
     #     return final_context
     
+
+    ## No reranker
     def _get_docs(self, inputs: Dict[str, Any], *, run_manager: CallbackManagerForChainRun) -> List[Document]:
         question = inputs[self.question_key]
-        before_time = time.time()
         docs = self.retriever.get_relevant_documents(question, callbacks=run_manager.get_child())
-        # print("Retrieved docs time: ", time.time() - before_time)
-        # print(docs)
+        
 
-        # Assuming reranker is defined elsewhere in your class
-        doc_pairs = [[question, doc.page_content] for doc in docs]
-        before_time = time.time()
-        scores = reranker.compute_score(doc_pairs, normalize=True)
-        # print("bge time: ", time.time() - before_time)
-        # print("scores", scores)
-
-        # Combining scores with documents for sorting
-        scored_docs_with_indices = list(zip(scores, docs, range(len(docs))))
-        scored_docs_with_indices.sort(reverse=True, key=lambda x: x[0])
-
-        # Extracting sorted documents
-        sorted_docs = [doc for _, doc, _ in scored_docs_with_indices]
 
         # Optionally reduce the number of documents if needed
         # Ensure this method returns a list of Document objects
-        reduced_docs = self._reduce_tokens_below_limit(sorted_docs)
+        reduced_docs = self._reduce_tokens_below_limit(docs)
 
         # Assuming _reduce_tokens_below_limit returns a list of Document objects
         # If you need to update the content or metadata of the documents based on the processing done above,
@@ -176,6 +163,48 @@ class RetrievalQAWithSourcesChain(BaseQAWithSourcesChain):
         # print("updated docs")
         # print(updated_docs)
         return updated_docs
+
+    ## Using bge reranker alone
+    # def _get_docs(self, inputs: Dict[str, Any], *, run_manager: CallbackManagerForChainRun) -> List[Document]:
+    #     question = inputs[self.question_key]
+    #     before_time = time.time()
+    #     docs = self.retriever.get_relevant_documents(question, callbacks=run_manager.get_child())
+    #     # print("Retrieved docs time: ", time.time() - before_time)
+    #     # print(docs)
+
+    #     # Assuming reranker is defined elsewhere in your class
+    #     doc_pairs = [[question, doc.page_content] for doc in docs]
+    #     before_time = time.time()
+    #     scores = reranker.compute_score(doc_pairs, normalize=True)
+    #     # print("bge time: ", time.time() - before_time)
+    #     # print("scores", scores)
+
+    #     # Combining scores with documents for sorting
+    #     scored_docs_with_indices = list(zip(scores, docs, range(len(docs))))
+    #     scored_docs_with_indices.sort(reverse=True, key=lambda x: x[0])
+
+    #     # Extracting sorted documents
+    #     sorted_docs = [doc for _, doc, _ in scored_docs_with_indices]
+
+    #     # Optionally reduce the number of documents if needed
+    #     # Ensure this method returns a list of Document objects
+    #     reduced_docs = self._reduce_tokens_below_limit(sorted_docs)
+
+    #     # Assuming _reduce_tokens_below_limit returns a list of Document objects
+    #     # If you need to update the content or metadata of the documents based on the processing done above,
+    #     # you would create new Document objects here. For example:
+    #     updated_docs = []
+    #     for doc in reduced_docs:
+    #         # Update document content or metadata as needed
+    #         # This is a placeholder; actual updates depend on your requirements
+    #         new_metadata = doc.metadata.copy()  # Assuming you want to update metadata
+    #         new_metadata['processed'] = True  # An example update
+    #         updated_doc = Document(page_content=doc.page_content, metadata=new_metadata)
+    #         updated_docs.append(updated_doc)
+
+    #     # print("updated docs")
+    #     # print(updated_docs)
+    #     return updated_docs
 
     async def _aget_docs(
         self, inputs: Dict[str, Any], *, run_manager: AsyncCallbackManagerForChainRun
