@@ -16,6 +16,7 @@ import os
 # from FlagEmbedding import FlagReranker
 # reranker = FlagReranker('BAAI/bge-reranker-large', use_fp16=True)
 import time
+import cohere
 
 class RetrievalQAWithSourcesChain(BaseQAWithSourcesChain):
     """Question-answering with sources over an index."""
@@ -137,16 +138,20 @@ class RetrievalQAWithSourcesChain(BaseQAWithSourcesChain):
     #     return final_context
     
 
-    ## No reranker
+    ## Cohere rerank alone
     def _get_docs(self, inputs: Dict[str, Any], *, run_manager: CallbackManagerForChainRun) -> List[Document]:
         question = inputs[self.question_key]
         docs = self.retriever.get_relevant_documents(question, callbacks=run_manager.get_child())
         
-
+        co = cohere.Client(os.environ['COHERE_API_KEY'])
+        valid_docs = [doc.page_content for doc in docs]
+        reranked_docs = co.rerank(model="rerank-english-v3.0", query=question, documents=valid_docs, top_n=5, return_documents=True)
+        reranked_docs_indices = [i.index for i in reranked_docs.results]
+        docs_c = [docs[i] for i in reranked_docs_indices]
 
         # Optionally reduce the number of documents if needed
         # Ensure this method returns a list of Document objects
-        reduced_docs = self._reduce_tokens_below_limit(docs)
+        reduced_docs = self._reduce_tokens_below_limit(docs_c)
 
         # Assuming _reduce_tokens_below_limit returns a list of Document objects
         # If you need to update the content or metadata of the documents based on the processing done above,
@@ -163,6 +168,33 @@ class RetrievalQAWithSourcesChain(BaseQAWithSourcesChain):
         # print("updated docs")
         # print(updated_docs)
         return updated_docs
+
+    # ## No reranker
+    # def _get_docs(self, inputs: Dict[str, Any], *, run_manager: CallbackManagerForChainRun) -> List[Document]:
+    #     question = inputs[self.question_key]
+    #     docs = self.retriever.get_relevant_documents(question, callbacks=run_manager.get_child())
+        
+
+
+    #     # Optionally reduce the number of documents if needed
+    #     # Ensure this method returns a list of Document objects
+    #     reduced_docs = self._reduce_tokens_below_limit(docs)
+
+    #     # Assuming _reduce_tokens_below_limit returns a list of Document objects
+    #     # If you need to update the content or metadata of the documents based on the processing done above,
+    #     # you would create new Document objects here. For example:
+    #     updated_docs = []
+    #     for doc in reduced_docs:
+    #         # Update document content or metadata as needed
+    #         # This is a placeholder; actual updates depend on your requirements
+    #         new_metadata = doc.metadata.copy()  # Assuming you want to update metadata
+    #         new_metadata['processed'] = True  # An example update
+    #         updated_doc = Document(page_content=doc.page_content, metadata=new_metadata)
+    #         updated_docs.append(updated_doc)
+
+    #     # print("updated docs")
+    #     # print(updated_docs)
+    #     return updated_docs
 
     ## Using bge reranker alone
     # def _get_docs(self, inputs: Dict[str, Any], *, run_manager: CallbackManagerForChainRun) -> List[Document]:
